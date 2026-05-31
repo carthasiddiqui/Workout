@@ -1,0 +1,631 @@
+import { useState, useEffect, useRef } from "react";
+
+const WEEKS_1_4 = [
+  { name: "Goblet Squat", weight: 30, unit: "lbs (1 dumbbell)", reps: 10, sets: 2, notes: "" },
+  { name: "Dumbbell Deadlift", weight: 20, unit: "lbs each hand", reps: 10, sets: 2, notes: "" },
+  { name: "Standing Calf Raises", weight: 30, unit: "lbs (1 dumbbell)", reps: 10, sets: 2, notes: "" },
+  { name: "Dumbbell Chest Press", weight: 15, unit: "lbs each hand", reps: 12, sets: 2, notes: "" },
+  { name: "Lateral Raises", weight: 8, unit: "lbs each hand", reps: 10, sets: 2, notes: "Shoulders DOWN before each rep" },
+  { name: "Skull Crushers", weight: 10, unit: "lbs both hands", reps: 10, sets: 2, notes: "Upper arms stay still — only forearms move" },
+  { name: "Bent-Over Row", weight: 20, unit: "lbs each hand", reps: 10, sets: 2, notes: "Shoulders DOWN — don't hike at the top" },
+];
+
+const WEEKS_5_8 = [
+  { name: "Dumbbell Squat", weight: 30, unit: "lbs each hand", reps: 12, sets: 3, notes: "Add weight if form is solid" },
+  { name: "Romanian Deadlift", weight: 20, unit: "lbs each hand", reps: 12, sets: 3, notes: "More hip hinge, stretch in hamstrings" },
+  { name: "Standing Calf Raises", weight: 30, unit: "lbs (1 dumbbell)", reps: 12, sets: 3, notes: "" },
+  { name: "Dumbbell Chest Press", weight: 15, unit: "lbs each hand", reps: 12, sets: 3, notes: "" },
+  { name: "Dumbbell Shoulder Press", weight: 10, unit: "lbs each hand", reps: 12, sets: 3, notes: "Seated or standing" },
+  { name: "Lateral Raises", weight: 8, unit: "lbs each hand", reps: 12, sets: 3, notes: "Shoulders DOWN before each rep" },
+  { name: "Skull Crushers", weight: 10, unit: "lbs both hands", reps: 12, sets: 3, notes: "Upper arms stay still — only forearms move" },
+  { name: "Single-Arm Row", weight: 20, unit: "lbs", reps: 12, sets: 3, notes: "Full range of motion" },
+  { name: "Bicep Curls", weight: 15, unit: "lbs each hand", reps: 12, sets: 3, notes: "Slow on the way down" },
+];
+
+const WEEKS_9_12_A = [
+  { name: "Dumbbell Squat", weight: 30, unit: "lbs each hand", reps: 12, sets: 3, notes: "Workout A — Lower focus" },
+  { name: "Romanian Deadlift", weight: 20, unit: "lbs each hand", reps: 12, sets: 3, notes: "" },
+  { name: "Standing Calf Raises", weight: 30, unit: "lbs (1 dumbbell)", reps: 12, sets: 3, notes: "" },
+  { name: "Dumbbell Chest Press", weight: 15, unit: "lbs each hand", reps: 12, sets: 3, notes: "" },
+  { name: "Dumbbell Shoulder Press", weight: 10, unit: "lbs each hand", reps: 12, sets: 3, notes: "" },
+  { name: "Skull Crushers", weight: 10, unit: "lbs both hands", reps: 12, sets: 3, notes: "" },
+];
+
+const WEEKS_9_12_B = [
+  { name: "Dumbbell Deadlift", weight: 20, unit: "lbs each hand", reps: 12, sets: 3, notes: "Workout B — Upper focus" },
+  { name: "Reverse Lunge", weight: 15, unit: "lbs each hand", reps: 12, sets: 3, notes: "Step back, knee hovers above floor" },
+  { name: "Standing Calf Raises", weight: 30, unit: "lbs (1 dumbbell)", reps: 12, sets: 3, notes: "" },
+  { name: "Bent-Over Row", weight: 20, unit: "lbs each hand", reps: 12, sets: 3, notes: "Shoulders DOWN" },
+  { name: "Bicep Curls", weight: 15, unit: "lbs each hand", reps: 12, sets: 3, notes: "Slow on the way down" },
+  { name: "Skull Crushers", weight: 10, unit: "lbs both hands", reps: 12, sets: 3, notes: "" },
+];
+
+const CORE = [
+  { name: "Dead Bug", reps: "10 per side", sets: 2 },
+  { name: "Glute Bridge", reps: "12 reps (30 lbs on hips)", sets: 2 },
+  { name: "Bird Dog", reps: "8 per side (3-sec hold)", sets: 2 },
+  { name: "Situps", reps: "10 reps", sets: 2 },
+];
+
+const HEADACHE = [
+  { name: "Chin Tucks", detail: "Pull chin straight back, hold 5 sec. Releases base-of-skull muscles.", reps: "10 reps" },
+  { name: "Levator Scapulae Stretch", detail: "Drop ear to shoulder, nose toward armpit. Targets shoulder-to-skull muscle.", reps: "30 sec each side" },
+  { name: "Doorway Chest Stretch", detail: "Forearms on frame, lean forward gently. Relieves upper trap tension.", reps: "30 sec" },
+  { name: "Shoulder Blade Squeezes", detail: "Squeeze blades together, hold 5 sec. Counterbalances tight upper traps.", reps: "10 reps" },
+];
+
+const FEELINGS = ["Easy", "Good", "Hard"];
+const FEELING_COLORS = { Easy: "#4ade80", Good: "#facc15", Hard: "#f87171" };
+
+function getPhase(week) {
+  if (week <= 4) return { label: "Weeks 1–4: Foundation", exercises: WEEKS_1_4 };
+  if (week <= 8) return { label: "Weeks 5–8: Build", exercises: WEEKS_5_8 };
+  return { label: `Weeks 9–12: Progress (${week % 2 === 1 ? "Workout A" : "Workout B"})`, exercises: week % 2 === 1 ? WEEKS_9_12_A : WEEKS_9_12_B };
+}
+
+const STORAGE_KEY = "workout_tracker_v1";
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveData(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+
+const initialState = () => {
+  const saved = loadData();
+  if (saved) return saved;
+  return {
+    currentWeek: 1,
+    sessions: [],
+    weights: {},
+  };
+};
+
+export default function WorkoutTracker() {
+  const [state, setState] = useState(initialState);
+  const [view, setView] = useState("home"); // home | workout | history | progress
+  const [session, setSession] = useState(null);
+  const [restTimer, setRestTimer] = useState(null);
+  const [restSeconds, setRestSeconds] = useState(60);
+  const [sessionStart, setSessionStart] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef(null);
+  const sessionTimerRef = useRef(null);
+
+  useEffect(() => { saveData(state); }, [state]);
+
+  useEffect(() => {
+    if (restTimer) {
+      timerRef.current = setInterval(() => {
+        setRestSeconds(s => {
+          if (s <= 1) { clearInterval(timerRef.current); setRestTimer(null); return 60; }
+          return s - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [restTimer]);
+
+  useEffect(() => {
+    if (sessionStart) {
+      sessionTimerRef.current = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - sessionStart) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(sessionTimerRef.current);
+  }, [sessionStart]);
+
+  const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  const startWorkout = () => {
+    const phase = getPhase(state.currentWeek);
+    const exs = phase.exercises.map(e => ({
+      ...e,
+      weight: state.weights[e.name] ?? e.weight,
+      completedSets: [],
+      feeling: null,
+    }));
+    setSession({
+      week: state.currentWeek,
+      phase: phase.label,
+      exercises: exs,
+      core: CORE.map(c => ({ ...c, done: false })),
+      headache: HEADACHE.map(h => ({ ...h, done: false })),
+      headacheToday: null,
+      sessionNotes: "",
+      date: new Date().toISOString(),
+    });
+    setSessionStart(Date.now());
+    setElapsed(0);
+    setView("workout");
+  };
+
+  const markSet = (exIdx, setIdx) => {
+    setSession(prev => {
+      const exs = [...prev.exercises];
+      const ex = { ...exs[exIdx] };
+      const sets = [...ex.completedSets];
+      if (sets.includes(setIdx)) sets.splice(sets.indexOf(setIdx), 1);
+      else sets.push(setIdx);
+      ex.completedSets = sets;
+      exs[exIdx] = ex;
+      return { ...prev, exercises: exs };
+    });
+    if (!restTimer) { setRestTimer(true); setRestSeconds(60); }
+  };
+
+  const setFeeling = (exIdx, feeling) => {
+    setSession(prev => {
+      const exs = [...prev.exercises];
+      exs[exIdx] = { ...exs[exIdx], feeling };
+      return { ...prev, exercises: exs };
+    });
+  };
+
+  const adjustWeight = (exIdx, delta) => {
+    setSession(prev => {
+      const exs = [...prev.exercises];
+      const ex = { ...exs[exIdx] };
+      ex.weight = Math.max(0, (ex.weight || 0) + delta);
+      exs[exIdx] = ex;
+      return { ...prev, exercises: exs };
+    });
+  };
+
+  const toggleCore = (idx) => {
+    setSession(prev => {
+      const core = [...prev.core];
+      core[idx] = { ...core[idx], done: !core[idx].done };
+      return { ...prev, core };
+    });
+  };
+
+  const toggleHeadache = (idx) => {
+    setSession(prev => {
+      const h = [...prev.headache];
+      h[idx] = { ...h[idx], done: !h[idx].done };
+      return { ...prev, headache: h };
+    });
+  };
+
+  const finishWorkout = () => {
+    const newWeights = { ...state.weights };
+    session.exercises.forEach(ex => { newWeights[ex.name] = ex.weight; });
+    const completedSession = { ...session, duration: elapsed };
+    setState(prev => ({
+      ...prev,
+      currentWeek: prev.currentWeek < 12 ? prev.currentWeek + 1 : prev.currentWeek,
+      sessions: [completedSession, ...prev.sessions],
+      weights: newWeights,
+    }));
+    clearInterval(sessionTimerRef.current);
+    setView("home");
+    setSession(null);
+  };
+
+  const getStreak = () => {
+    const sessions = state.sessions;
+    if (!sessions.length) return 0;
+    let streak = 0;
+    const now = new Date();
+    for (let i = 0; i < sessions.length; i++) {
+      const d = new Date(sessions[i].date);
+      const diff = Math.floor((now - d) / (1000 * 60 * 60 * 24 * 7));
+      if (diff <= streak + 1) streak++;
+      else break;
+    }
+    return streak;
+  };
+
+  const getProgressData = (exerciseName) => {
+    return state.sessions
+      .filter(s => s.exercises.some(e => e.name === exerciseName))
+      .map(s => ({
+        date: new Date(s.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        weight: s.exercises.find(e => e.name === exerciseName)?.weight ?? 0,
+        week: s.week,
+      }))
+      .reverse();
+  };
+
+  const allExerciseNames = [...new Set([
+    ...WEEKS_1_4, ...WEEKS_5_8, ...WEEKS_9_12_A, ...WEEKS_9_12_B
+  ].map(e => e.name))];
+
+  const [selectedExercise, setSelectedExercise] = useState(allExerciseNames[0]);
+
+  // ---- STYLES ----
+  const s = {
+    app: { fontFamily: "'Georgia', serif", background: "#0f1117", minHeight: "100vh", color: "#f0ede8", maxWidth: 430, margin: "0 auto", paddingBottom: 80 },
+    header: { background: "linear-gradient(135deg, #1a1f2e 0%, #0f1117 100%)", padding: "24px 20px 16px", borderBottom: "1px solid #2a2f3e" },
+    title: { fontSize: 22, fontWeight: 700, letterSpacing: 1, color: "#e8d5b0", margin: 0 },
+    subtitle: { fontSize: 12, color: "#8a8a9a", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" },
+    nav: { position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#1a1f2e", borderTop: "1px solid #2a2f3e", display: "flex", justifyContent: "space-around", padding: "8px 0" },
+    navBtn: (active) => ({ background: "none", border: "none", color: active ? "#e8d5b0" : "#5a5a7a", fontSize: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "4px 12px" }),
+    navIcon: { fontSize: 20 },
+    card: { background: "#1a1f2e", borderRadius: 12, padding: 16, margin: "12px 16px", border: "1px solid #2a2f3e" },
+    sectionTitle: { fontSize: 11, color: "#8a8a9a", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12, fontFamily: "'Georgia', serif" },
+    bigBtn: { width: "100%", background: "linear-gradient(135deg, #c8a96e, #e8d5b0)", color: "#0f1117", border: "none", borderRadius: 12, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer", letterSpacing: 1 },
+    exCard: { background: "#0f1117", borderRadius: 10, padding: 14, marginBottom: 10, border: "1px solid #2a2f3e" },
+    exName: { fontSize: 15, fontWeight: 700, color: "#e8d5b0", marginBottom: 2 },
+    exDetail: { fontSize: 11, color: "#8a8a9a", marginBottom: 8 },
+    setRow: { display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" },
+    setBtn: (done) => ({ background: done ? "#c8a96e" : "#2a2f3e", color: done ? "#0f1117" : "#8a8a9a", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }),
+    feelRow: { display: "flex", gap: 6 },
+    feelBtn: (f, active) => ({ background: active ? FEELING_COLORS[f] : "#2a2f3e", color: active ? "#0f1117" : "#8a8a9a", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer" }),
+    weightRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
+    weightBtn: { background: "#2a2f3e", color: "#e8d5b0", border: "none", borderRadius: 6, width: 32, height: 32, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+    weightVal: { fontSize: 16, fontWeight: 700, color: "#c8a96e", minWidth: 80, textAlign: "center" },
+    timerBar: { background: "#1a1f2e", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #2a2f3e", position: "sticky", top: 0, zIndex: 10 },
+    pill: (c) => ({ background: c, color: "#0f1117", borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: 700 }),
+    coreItem: (done) => ({ background: done ? "#1e2d1e" : "#0f1117", border: `1px solid ${done ? "#4ade80" : "#2a2f3e"}`, borderRadius: 8, padding: 12, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }),
+    checkBox: (done) => ({ width: 22, height: 22, borderRadius: 6, border: `2px solid ${done ? "#4ade80" : "#5a5a7a"}`, background: done ? "#4ade80" : "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }),
+    statBox: { background: "#0f1117", borderRadius: 10, padding: 16, flex: 1, textAlign: "center", border: "1px solid #2a2f3e" },
+    statNum: { fontSize: 28, fontWeight: 700, color: "#c8a96e" },
+    statLabel: { fontSize: 10, color: "#8a8a9a", textTransform: "uppercase", letterSpacing: 2, marginTop: 2 },
+    histCard: { background: "#0f1117", borderRadius: 10, padding: 14, marginBottom: 10, border: "1px solid #2a2f3e" },
+    textarea: { width: "100%", background: "#0f1117", border: "1px solid #2a2f3e", borderRadius: 8, color: "#f0ede8", padding: 10, fontSize: 13, fontFamily: "Georgia, serif", resize: "none", boxSizing: "border-box" },
+    select: { background: "#0f1117", border: "1px solid #2a2f3e", color: "#e8d5b0", borderRadius: 8, padding: "8px 10px", fontSize: 13, width: "100%" },
+  };
+
+  // ---- VIEWS ----
+
+  if (view === "workout" && session) {
+    const allStrengthDone = session.exercises.every(e => e.completedSets.length >= e.sets);
+    const allCoreDone = session.core.every(c => c.done);
+
+    return (
+      <div style={s.app}>
+        <div style={s.timerBar}>
+          <div>
+            <div style={{ fontSize: 11, color: "#8a8a9a", letterSpacing: 2 }}>SESSION TIME</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#e8d5b0", fontFamily: "monospace" }}>{formatTime(elapsed)}</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#8a8a9a" }}>WEEK {session.week}</div>
+            <div style={{ fontSize: 12, color: "#c8a96e" }}>Phase {session.week <= 4 ? "1" : session.week <= 8 ? "2" : "3"}</div>
+          </div>
+          {restTimer ? (
+            <div style={s.pill("#f87171")}>{formatTime(restSeconds)} rest</div>
+          ) : (
+            <div style={s.pill("#4ade80")}>Go!</div>
+          )}
+        </div>
+
+        <div style={{ padding: "0 0 20px" }}>
+          {/* Elliptical */}
+          <div style={{ ...s.card, borderLeft: "3px solid #c8a96e" }}>
+            <div style={s.sectionTitle}>🏃 Elliptical</div>
+            <div style={{ color: "#e8d5b0", fontSize: 15 }}>
+              {session.week <= 4 ? "15 minutes — easy conversational pace" :
+               session.week <= 8 ? "20 minutes — 2-min moderate intervals every 5 min" :
+               "25 minutes — 3×3-min hard effort intervals"}
+            </div>
+          </div>
+
+          {/* Strength */}
+          <div style={s.card}>
+            <div style={s.sectionTitle}>💪 Strength</div>
+            {session.exercises.map((ex, i) => (
+              <div key={i} style={s.exCard}>
+                <div style={s.exName}>{ex.name}</div>
+                {ex.notes ? <div style={s.exDetail}>⚠️ {ex.notes}</div> : null}
+                <div style={{ fontSize: 11, color: "#8a8a9a", marginBottom: 8 }}>{ex.reps} reps × {ex.sets} sets</div>
+                <div style={s.weightRow}>
+                  <button style={s.weightBtn} onClick={() => adjustWeight(i, -5)}>−</button>
+                  <div style={s.weightVal}>{ex.weight} lbs<br/><span style={{ fontSize: 10, color: "#8a8a9a" }}>{ex.unit}</span></div>
+                  <button style={s.weightBtn} onClick={() => adjustWeight(i, 5)}>+</button>
+                </div>
+                <div style={s.setRow}>
+                  {Array.from({ length: ex.sets }).map((_, si) => (
+                    <button key={si} style={s.setBtn(ex.completedSets.includes(si))} onClick={() => markSet(i, si)}>
+                      {ex.completedSets.includes(si) ? "✓" : ""} Set {si + 1}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: "#8a8a9a", marginBottom: 4 }}>How did it feel?</div>
+                <div style={s.feelRow}>
+                  {FEELINGS.map(f => (
+                    <button key={f} style={s.feelBtn(f, ex.feeling === f)} onClick={() => setFeeling(i, f)}>{f}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Core */}
+          <div style={s.card}>
+            <div style={s.sectionTitle}>🧠 Core — 2 rounds</div>
+            {session.core.map((c, i) => (
+              <div key={i} style={s.coreItem(c.done)} onClick={() => toggleCore(i)}>
+                <div>
+                  <div style={{ fontSize: 14, color: c.done ? "#4ade80" : "#e8d5b0" }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: "#8a8a9a" }}>{c.reps}</div>
+                </div>
+                <div style={s.checkBox(c.done)}>{c.done && <span style={{ fontSize: 14, color: "#0f1117" }}>✓</span>}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Headache Prevention */}
+          <div style={s.card}>
+            <div style={s.sectionTitle}>🌿 Tension Headache Prevention</div>
+            {session.headache.map((h, i) => (
+              <div key={i} style={s.coreItem(h.done)} onClick={() => toggleHeadache(i)}>
+                <div style={{ flex: 1, paddingRight: 10 }}>
+                  <div style={{ fontSize: 14, color: h.done ? "#4ade80" : "#e8d5b0" }}>{h.name}</div>
+                  <div style={{ fontSize: 10, color: "#8a8a9a", marginTop: 2 }}>{h.detail}</div>
+                  <div style={{ fontSize: 11, color: "#c8a96e", marginTop: 2 }}>{h.reps}</div>
+                </div>
+                <div style={s.checkBox(h.done)}>{h.done && <span style={{ fontSize: 14, color: "#0f1117" }}>✓</span>}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Headache today? */}
+          <div style={s.card}>
+            <div style={s.sectionTitle}>📊 Headache Log</div>
+            <div style={{ fontSize: 13, color: "#8a8a9a", marginBottom: 10 }}>Did you have a tension headache today?</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              {["Yes", "No", "Mild"].map(opt => (
+                <button key={opt} style={{ ...s.setBtn(session.headacheToday === opt), flex: 1 }}
+                  onClick={() => setSession(prev => ({ ...prev, headacheToday: opt }))}>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div style={s.card}>
+            <div style={s.sectionTitle}>📝 Session Notes</div>
+            <textarea style={s.textarea} rows={3} placeholder="Anything worth remembering? (e.g. left knee felt off, increased row weight...)"
+              value={session.sessionNotes}
+              onChange={e => setSession(prev => ({ ...prev, sessionNotes: e.target.value }))} />
+          </div>
+
+          {/* Finish */}
+          <div style={{ padding: "0 16px" }}>
+            <button style={s.bigBtn} onClick={finishWorkout}>
+              ✓ Complete Workout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "history") {
+    return (
+      <div style={s.app}>
+        <div style={s.header}>
+          <div style={s.title}>Session History</div>
+          <div style={s.subtitle}>{state.sessions.length} workouts completed</div>
+        </div>
+        <div style={{ padding: "12px 16px" }}>
+          {state.sessions.length === 0 && (
+            <div style={{ color: "#5a5a7a", textAlign: "center", marginTop: 40, fontSize: 14 }}>No sessions yet — complete your first workout!</div>
+          )}
+          {state.sessions.map((s2, i) => (
+            <div key={i} style={s.histCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d5b0" }}>
+                  {new Date(s2.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                </div>
+                <div style={{ fontSize: 11, color: "#c8a96e" }}>Week {s2.week} · {formatTime(s2.duration || 0)}</div>
+              </div>
+              <div style={{ fontSize: 11, color: "#8a8a9a", marginBottom: 6 }}>{s2.phase}</div>
+              {s2.exercises.map((ex, j) => (
+                <div key={j} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a8a9a", padding: "3px 0", borderBottom: "1px solid #1a1f2e" }}>
+                  <span>{ex.name}</span>
+                  <span style={{ color: ex.feeling ? FEELING_COLORS[ex.feeling] : "#5a5a7a" }}>
+                    {ex.weight} lbs {ex.feeling ? `· ${ex.feeling}` : ""}
+                  </span>
+                </div>
+              ))}
+              {s2.headacheToday && (
+                <div style={{ marginTop: 6, fontSize: 11 }}>
+                  Headache: <span style={{ color: s2.headacheToday === "No" ? "#4ade80" : "#f87171" }}>{s2.headacheToday}</span>
+                </div>
+              )}
+              {s2.sessionNotes ? <div style={{ marginTop: 6, fontSize: 11, color: "#8a8a9a", fontStyle: "italic" }}>"{s2.sessionNotes}"</div> : null}
+            </div>
+          ))}
+        </div>
+        <div style={s.nav}>
+          {[["🏠","Home","home"],["🏋️","Workout","workout_start"],["📋","History","history"],["📈","Progress","progress"]].map(([icon,label,v]) => (
+            <button key={v} style={s.navBtn(view === v || (v==="history" && view==="history"))} onClick={() => v === "workout_start" ? startWorkout() : setView(v)}>
+              <span style={s.navIcon}>{icon}</span><span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "progress") {
+    const data = getProgressData(selectedExercise);
+    const maxW = data.length ? Math.max(...data.map(d => d.weight)) : 30;
+    const minW = data.length ? Math.min(...data.map(d => d.weight)) : 0;
+    const headacheData = state.sessions.filter(s2 => s2.headacheToday).map(s2 => ({
+      date: new Date(s2.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      val: s2.headacheToday,
+    })).reverse();
+
+    return (
+      <div style={s.app}>
+        <div style={s.header}>
+          <div style={s.title}>Progress</div>
+          <div style={s.subtitle}>Your journey over 12 weeks</div>
+        </div>
+        <div style={{ padding: "12px 16px" }}>
+          <div style={s.card}>
+            <div style={s.sectionTitle}>📈 Weight Progress</div>
+            <select style={s.select} value={selectedExercise} onChange={e => setSelectedExercise(e.target.value)}>
+              {allExerciseNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            {data.length === 0 ? (
+              <div style={{ color: "#5a5a7a", fontSize: 12, marginTop: 12, textAlign: "center" }}>No data yet for this exercise</div>
+            ) : (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 100 }}>
+                  {data.map((d, i) => {
+                    const height = maxW === minW ? 60 : ((d.weight - minW) / (maxW - minW)) * 80 + 20;
+                    return (
+                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        <div style={{ fontSize: 9, color: "#c8a96e" }}>{d.weight}</div>
+                        <div style={{ width: "100%", height, background: "linear-gradient(180deg, #c8a96e, #8a6a3e)", borderRadius: "4px 4px 0 0" }} />
+                        <div style={{ fontSize: 8, color: "#5a5a7a", textAlign: "center" }}>{d.date}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ textAlign: "center", marginTop: 8, fontSize: 12, color: "#8a8a9a" }}>
+                  Started: {data[0]?.weight} lbs → Now: {data[data.length-1]?.weight} lbs
+                  {data.length > 1 && <span style={{ color: "#4ade80", marginLeft: 8 }}>+{data[data.length-1].weight - data[0].weight} lbs</span>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={s.card}>
+            <div style={s.sectionTitle}>🤕 Headache Tracker</div>
+            {headacheData.length === 0 ? (
+              <div style={{ color: "#5a5a7a", fontSize: 12, textAlign: "center" }}>No headache data yet</div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {headacheData.map((d, i) => (
+                  <div key={i} style={{ background: d.val === "No" ? "#1e2d1e" : "#2d1e1e", border: `1px solid ${d.val === "No" ? "#4ade80" : "#f87171"}`, borderRadius: 8, padding: "6px 10px", fontSize: 11 }}>
+                    <div style={{ color: "#8a8a9a" }}>{d.date}</div>
+                    <div style={{ color: d.val === "No" ? "#4ade80" : "#f87171", fontWeight: 700 }}>{d.val}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={s.card}>
+            <div style={s.sectionTitle}>🗓 Program Overview</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
+              {Array.from({ length: 12 }).map((_, i) => {
+                const w = i + 1;
+                const done = state.sessions.some(s2 => s2.week === w);
+                const current = w === state.currentWeek;
+                return (
+                  <div key={i} style={{ background: done ? "#c8a96e" : current ? "#2a2f3e" : "#0f1117", border: `1px solid ${current ? "#c8a96e" : "#2a2f3e"}`, borderRadius: 6, padding: "8px 4px", textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: done ? "#0f1117" : current ? "#c8a96e" : "#5a5a7a", fontWeight: 700 }}>W{w}</div>
+                    {done && <div style={{ fontSize: 8, color: "#0f1117" }}>✓</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div style={s.nav}>
+          {[["🏠","Home","home"],["🏋️","Workout","workout_start"],["📋","History","history"],["📈","Progress","progress"]].map(([icon,label,v]) => (
+            <button key={v} style={s.navBtn(view === v)} onClick={() => v === "workout_start" ? startWorkout() : setView(v)}>
+              <span style={s.navIcon}>{icon}</span><span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // HOME
+  const streak = getStreak();
+  const phase = getPhase(state.currentWeek);
+  const lastSession = state.sessions[0];
+
+  return (
+    <div style={s.app}>
+      <div style={s.header}>
+        <div style={s.title}>Your Workout</div>
+        <div style={s.subtitle}>12-Week Program · {phase.label}</div>
+      </div>
+
+      <div style={{ padding: "12px 16px" }}>
+        {/* Stats row */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
+          <div style={s.statBox}>
+            <div style={s.statNum}>{state.currentWeek}</div>
+            <div style={s.statLabel}>Current Week</div>
+          </div>
+          <div style={s.statBox}>
+            <div style={s.statNum}>{state.sessions.length}</div>
+            <div style={s.statLabel}>Sessions Done</div>
+          </div>
+          <div style={s.statBox}>
+            <div style={s.statNum}>{streak}</div>
+            <div style={s.statLabel}>Week Streak</div>
+          </div>
+        </div>
+
+        {/* Phase progress */}
+        <div style={s.card}>
+          <div style={s.sectionTitle}>Program Progress</div>
+          <div style={{ background: "#0f1117", borderRadius: 20, height: 8, overflow: "hidden" }}>
+            <div style={{ background: "linear-gradient(90deg, #c8a96e, #e8d5b0)", width: `${(state.currentWeek / 12) * 100}%`, height: "100%", borderRadius: 20, transition: "width 0.5s ease" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 10, color: "#5a5a7a" }}>
+            <span>Week 1</span><span style={{ color: "#c8a96e" }}>Week {state.currentWeek} of 12</span><span>Week 12</span>
+          </div>
+        </div>
+
+        {/* Today's workout preview */}
+        <div style={s.card}>
+          <div style={s.sectionTitle}>Today's Session</div>
+          <div style={{ fontSize: 12, color: "#8a8a9a", marginBottom: 10 }}>{phase.label}</div>
+          {phase.exercises.slice(0, 4).map((ex, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#e8d5b0", padding: "4px 0", borderBottom: "1px solid #1a1f2e" }}>
+              <span>{ex.name}</span>
+              <span style={{ color: "#c8a96e" }}>{state.weights[ex.name] ?? ex.weight} lbs</span>
+            </div>
+          ))}
+          {phase.exercises.length > 4 && <div style={{ fontSize: 11, color: "#5a5a7a", marginTop: 6 }}>+{phase.exercises.length - 4} more exercises...</div>}
+        </div>
+
+        {/* Last session */}
+        {lastSession && (
+          <div style={s.card}>
+            <div style={s.sectionTitle}>Last Session</div>
+            <div style={{ fontSize: 12, color: "#8a8a9a" }}>
+              {new Date(lastSession.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })} · {formatTime(lastSession.duration || 0)}
+            </div>
+            {lastSession.headacheToday && (
+              <div style={{ marginTop: 6, fontSize: 12 }}>
+                Headache: <span style={{ color: lastSession.headacheToday === "No" ? "#4ade80" : "#f87171" }}>{lastSession.headacheToday}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <button style={s.bigBtn} onClick={startWorkout}>
+          Start Workout →
+        </button>
+
+        {state.currentWeek < 12 && (
+          <div style={{ textAlign: "center", marginTop: 10 }}>
+            <button style={{ background: "none", border: "none", color: "#5a5a7a", fontSize: 12, cursor: "pointer" }}
+              onClick={() => setState(prev => ({ ...prev, currentWeek: Math.max(1, prev.currentWeek - 1) }))}>
+              ← Back a week
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={s.nav}>
+        {[["🏠","Home","home"],["🏋️","Workout","workout_start"],["📋","History","history"],["📈","Progress","progress"]].map(([icon,label,v]) => (
+          <button key={v} style={s.navBtn(view === v)} onClick={() => v === "workout_start" ? startWorkout() : setView(v)}>
+            <span style={s.navIcon}>{icon}</span><span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
