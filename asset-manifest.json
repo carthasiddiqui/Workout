@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/Workout/static/js/main.4c1e71e6.js",
+    "main.js": "/Workout/static/js/main.faa3bc97.js",
     "index.html": "/Workout/index.html",
-    "main.4c1e71e6.js.map": "/Workout/static/js/main.4c1e71e6.js.map"
+    "main.faa3bc97.js.map": "/Workout/static/js/main.faa3bc97.js.map"
   },
   "entrypoints": [
-    "static/js/main.4c1e71e6.js"
+    "static/js/main.faa3bc97.js"
   ]
 }
