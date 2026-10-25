@@ -546,11 +546,11 @@ export default function WorkoutTracker() {
     try {
     const isTravel = gymMode === "travel";
     const phase = isTravel ? buildTravelPhase() : getPhase(state.currentWeek);
-    const supersets = phase.supersets.map(ss=>({
+    const supersets = isTravel ? phase.supersets : phase.supersets.map(ss=>({
       ...ss,
-      exercises: ss.pair.map(exDef=>{
+      exercises: (ss.pair||ss.exercises||[]).map(exDef=>{
         const prior = getPriorExData(state.sessions.filter(s=>s.gymMode===gymMode), exDef.name);
-        const weightsToUse = isTravel ? (state.travelGyms?.[travelGymName]?.weights||{}) : state.weights;
+        const weightsToUse = state.weights;
         const { weight, reps } = smartDefaults(exDef, prior, weightsToUse);
         return {
           ...exDef,
